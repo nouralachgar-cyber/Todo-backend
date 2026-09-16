@@ -16,7 +16,13 @@ const todoRoutes = require('./routes/todoRoutes');
 const app = express();
 
 // Middleware
-app.use(cors());
+const corsOrigin = process.env.CLIENT_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
+app.use(
+  cors({
+    origin: corsOrigin === '*' ? '*' : corsOrigin.split(',').map((o) => o.trim()),
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
