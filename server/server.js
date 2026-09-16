@@ -43,9 +43,27 @@ async function connectDB() {
   }
 }
 
-// In Vercel serverless, ensure DB is connected before handling any route
+// Health check - must be before DB middleware so Vercel shows "server is running" even if DB not yet connected
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Todo API is running',
+    version: '1.0.0',
+  });
+});
+app.get('/api', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Todo API is running',
+    version: '1.0.0',
+  });
+});
+
+// In Vercel serverless, ensure DB is connected before handling API routes
 if (process.env.VERCEL) {
   app.use(async (req, res, next) => {
+    // Skip DB connection for health checks
+    if (req.path === '/' || req.path === '/api') return next();
     try {
       await connectDB();
       next();
@@ -60,15 +78,6 @@ if (process.env.VERCEL) {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/todos', todoRoutes);
-
-// Health check
-app.get('/', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Todo API is running',
-    version: '1.0.0',
-  });
-});
 
 // 404 handler
 app.use((req, res) => {
