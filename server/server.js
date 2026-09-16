@@ -26,6 +26,37 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// DB connection helper (cached for Vercel serverless)
+const MONGO_URI = process.env.MONGO_URI;
+let isConnected = false;
+async function connectDB() {
+  if (isConnected) return;
+  if (!MONGO_URI) throw new Error('MONGO_URI is not defined');
+  try {
+    await mongoose.connect(MONGO_URI);
+    isConnected = true;
+    console.log('MongoDB connected');
+  } catch (err) {
+    console.error('MongoDB connection error:', err.message);
+    if (!process.env.VERCEL) process.exit(1);
+    throw err;
+  }
+}
+
+// In Vercel serverless, ensure DB is connected before handling any route
+if (process.env.VERCEL) {
+  app.use(async (req, res, next) => {
+    try {
+      await connectDB();
+      next();
+    } catch (e) {
+      next(e);
+    }
+  });
+  // Trigger initial connection on cold start
+  connectDB().catch((err) => console.error(err));
+}
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/todos', todoRoutes);
@@ -57,29 +88,24 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
   console.error('MONGO_URI is not defined in .env file');
-  process.exit(1);
+  if (!process.env.VERCEL) process.exit(1);
 }
 
 if (!process.env.JWT_SECRET) {
   console.error('JWT_SECRET is not defined in .env file');
-  process.exit(1);
+  if (!process.env.VERCEL) process.exit(1);
 }
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => {
-    console.log('MongoDB connected');
+// Local development: connect and listen
+if (!process.env.VERCEL) {
+  connectDB().then(() => {
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err.message);
-    process.exit(1);
   });
+}
 
 module.exports = app;
